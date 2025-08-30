@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chá Revelação</title>
+  <style>
+    :root{
+      --azul:#0ea5e9; --rosa:#f472b6; --preto:#111827; --branco:#fff;
+    }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+      background:linear-gradient(135deg,var(--azul),var(--rosa));
+      transition:background 0.8s ease;
+      overflow:hidden;
+    }
+    body.rosa{ background: radial-gradient(circle,#ffd1ec,#f472b6,#ec4899); }
+
+    .container{ text-align:center; color:white; position:relative; z-index:1; }
+    .hidden{ display:none !important; }
+
+    button{
+      padding:15px 25px; border:none; border-radius:30px;
+      background:var(--preto); color:#fff; font-size:18px; cursor:pointer;
+    }
+    button:hover{opacity:0.9}
+
+    #mensagem{
+      display:none; margin-top:20px; font-size:36px; font-weight:bold;
+      color:#7a103a; text-shadow: 0 1px 0 rgba(255,255,255,.6);
+    }
+    #acerto{ margin-top:8px; font-size:18px; color:#ffffff; text-shadow: 0 1px 0 rgba(0,0,0,.25); }
+
+    /* Tela de Palpite */
+    #palpite{
+      position:fixed; inset:0; display:grid; place-items:center; z-index:2;
+      background: radial-gradient(1200px 700px at 50% -10%, rgba(255,255,255,.15), rgba(0,0,0,.15)),
+                  linear-gradient(135deg,var(--azul),var(--rosa));
+      color:#fff; text-align:center; padding:24px;
+    }
+    #palpite .card{
+      background: rgba(255,255,255,.12); backdrop-filter: blur(8px);
+      border:1px solid rgba(255,255,255,.25); border-radius:20px;
+      padding:24px; box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      width:min(560px, 92vw);
+    }
+    #palpite h2{ margin:0 0 8px; font-size: clamp(24px, 5vw, 36px); }
+    #palpite p{ margin:0 0 18px; opacity:.95 }
+    .choices{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+    .btn-guess{ font-weight:700 }
+    .menino{ background:#0b66c3 }
+    .menina{ background:#d9468d }
+
+    /* Confete */
+    canvas#confetti{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+
+    @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+  </style>
+</head>
+<body>
+  <!-- Tela de palpite -->
+  <section id="palpite" aria-modal="true" role="dialog">
+    <div class="card">
+      <h2>Seu palpite?</h2>
+      <p>Antes de revelar, escolha: <strong>Menino</strong> ou <strong>Menina</strong>.</p>
+      <div class="choices">
+        <button class="btn-guess menino" data-guess="menino">👶 Menino</button>
+        <button class="btn-guess menina" data-guess="menina">👧 Menina</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tela principal (fica oculta até escolher o palpite) -->
+  <div class="container hidden" id="telaPrincipal">
+    <h1>Menino ou Menina?</h1>
+    <p id="seuPalpite" style="margin-top:-6px;opacity:.9"></p>
+    <button id="revelar">Aperte para revelar</button>
+    <div id="mensagem">É uma MENINA! 💗</div>
+    <div id="acerto"></div>
+  </div>
+
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <script>
+    // Elementos base
+    const telaPalpite = document.getElementById('palpite');
+    const telaPrincipal = document.getElementById('telaPrincipal');
+    const btnRevelar = document.getElementById('revelar');
+    const msg = document.getElementById('mensagem');
+    const seuPalpite = document.getElementById('seuPalpite');
+    const acerto = document.getElementById('acerto');
+
+    let palpite = null; // 'menino' ou 'menina'
+
+    // Escolha do palpite
+    document.querySelectorAll('.btn-guess').forEach(b => {
+      b.addEventListener('click', () => {
+        palpite = b.dataset.guess; // salva
+        telaPalpite.classList.add('hidden');
+        telaPrincipal.classList.remove('hidden');
+        seuPalpite.textContent = `Seu palpite: ${palpite === 'menina' ? 'Menina' : 'Menino'} ✨`;
+        // foca no botão revelar para acessibilidade
+        setTimeout(()=> btnRevelar.focus(), 50);
+      });
+    });
+
+    // ===== Confete =====
+    const canvas = document.getElementById('confetti');
+    const ctx = canvas.getContext('2d');
+    let W, H, animId;
+    function resize(){ canvas.width = W = window.innerWidth; canvas.height = H = window.innerHeight; }
+    window.addEventListener('resize', resize, {passive:true});
+    resize();
+    function rand(min,max){ return Math.random()*(max-min)+min }
+    const colors = ['#ff4da6','#ff77c8','#ffcce6','#ffffff','#ffd700'];
+    function createParticles(count){
+      const arr=[]; const spread=Math.min(180, Math.max(60, W*0.3));
+      for(let i=0;i<count;i++){
+        const angle = rand(-Math.PI/2 - .6, -Math.PI/2 + .6);
+        arr.push({ x: W/2 + rand(-spread/2, spread/2), y: H + 10, size: rand(6,12), rot: rand(0, Math.PI*2), spin: rand(-0.25,0.25), color: colors[i%colors.length], vx: Math.cos(angle)*rand(5,10), vy: Math.sin(angle)*rand(10,16), ay: 0.25 });
+      }
+      return arr;
+    }
+    function draw(p){ ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.globalAlpha=0.9; ctx.fillStyle=p.color; const w=p.size,h=p.size*0.6; ctx.fillRect(-w/2,-h/2,w,h); ctx.restore(); }
+    function startConfetti(duration=5000){
+      cancelAnimationFrame(animId);
+      const particles=[...createParticles(200),...createParticles(120)];
+      let start;
+      function frame(ts){
+        if(!start) start=ts; const t=ts-start; ctx.clearRect(0,0,W,H);
+        for(const p of particles){ p.vy+=p.ay*0.1; p.x+=p.vx; p.y+=p.vy; p.rot+=p.spin; if(p.y>H+20){ p.x=rand(0,W); p.y=-10; p.vx=rand(-2,2); p.vy=rand(3,6);} draw(p);} 
+        if(t<duration){ animId=requestAnimationFrame(frame);} else { ctx.clearRect(0,0,W,H);} }
+      animId=requestAnimationFrame(frame);
+    }
+
+    // Lógica de revelar
+    btnRevelar.addEventListener('click', () => {
+      msg.style.display='block';
+      document.body.classList.add('rosa');
+      btnRevelar.style.display='none';
+      // feedback se acertou
+      const resultado = 'menina';
+      if(palpite === resultado){ acerto.textContent = 'Você acertou! 🎉'; }
+      else { acerto.textContent = `Quase! Você chutou ${palpite === 'menino' ? 'Menino' : 'Menina'}.`; }
+      try{ if(navigator.vibrate) navigator.vibrate(40);}catch(e){}
+      startConfetti(6000);
+    });
+  </script>
+</body>
+</html>
