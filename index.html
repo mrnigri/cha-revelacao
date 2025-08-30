@@ -39,16 +39,41 @@
     #mensagem{
       display:none; margin-top:16px; font-size:clamp(26px, 8vw, 40px); font-weight:800;
       color:#7a103a;
+      opacity:0; transform:scale(0.95);
+      transition: opacity 0.8s ease, transform 0.8s ease;
     }
+    #mensagem.show{ opacity:1; transform:scale(1); }
+
     #palpiteTexto{ 
-      margin:12px 0 28px;
+      margin:12px 0 12px;
       font-size:clamp(20px,5.5vw,28px);
       font-weight:700;
       opacity:.95;
     }
-    #acerto{ margin-top:20px; font-size:clamp(18px,5vw,24px); font-weight:600; text-shadow:0 2px 6px rgba(0,0,0,.6); color:#fff; }
+    #resultadoVotos{
+      margin-bottom:28px;
+      font-size:clamp(16px,5vw,22px);
+      font-weight:500;
+      opacity:.95;
+    }
+    #contagem{
+      display:none;
+      margin-top:20px;
+      font-size:clamp(22px,6vw,32px);
+      font-weight:800;
+      letter-spacing:0.5px;
+      color:#fff;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity:1 }
+      50% { transform: scale(1.08); opacity:0.95 }
+      100% { transform: scale(1); opacity:1 }
+    }
+    #contagem.pulsando{ animation: pulse 1s ease-in-out infinite; }
 
-    /* Tela de Palpite */
+    #acerto{ margin-top:20px; font-size:clamp(18px,5vw,24px); font-weight:600; text-shadow:0 2px 6px rgba(0,0,0,.6); color:#fff; opacity:0; transform:translateY(10px); transition: opacity 0.8s ease, transform 0.8s ease; }
+    #acerto.show { opacity:1; transform:translateY(0); }
+
     #palpite{
       position:fixed; inset:0; display:grid; place-items:center; z-index:2;
       background: radial-gradient(1200px 700px at 50% -10%, rgba(255,255,255,.15), rgba(0,0,0,.15)),
@@ -62,13 +87,13 @@
       width:min(560px, 92vw); margin-inline:auto;
     }
     #palpite h2{ margin:0 0 8px; font-size: clamp(24px, 7vw, 36px); font-weight:800; }
+    #palpite h3{ margin:0 0 40px; font-size: clamp(22px, 6.5vw, 30px); font-style:italic; font-weight:600; opacity:0.95; }
     #palpite p{ margin:0 0 18px; opacity:.95; font-size:clamp(16px,4.5vw,20px) }
     .choices{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
     .btn-guess{ font-weight:700; width:min(220px, 100%); }
     .menino{ background:#0b66c3 }
     .menina{ background:#d9468d }
 
-    /* Confete */
     canvas#confetti{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
 
     @media (max-width: 380px){ .choices{ gap:8px } }
@@ -77,10 +102,10 @@
   </style>
 </head>
 <body>
-  <!-- Tela de palpite -->
   <section id="palpite" aria-modal="true" role="dialog">
     <div class="card">
       <h2>Chá revelação virtual</h2>
+      <h3>2º bebê Dodo & Michel</h3>
       <p>Qual é o seu palpite?</p>
       <div class="choices">
         <button class="btn-guess menino" data-guess="menino">👶 Menino</button>
@@ -89,10 +114,11 @@
     </div>
   </section>
 
-  <!-- Tela principal -->
   <div class="container hidden" id="telaPrincipal">
     <p id="palpiteTexto"></p>
+    <div id="resultadoVotos"></div>
     <button id="revelar">Aperte para revelar</button>
+    <div id="contagem"></div>
     <div id="mensagem">É uma MENINA! 💗</div>
     <div id="acerto"></div>
   </div>
@@ -104,20 +130,81 @@
     const telaPrincipal = document.getElementById('telaPrincipal');
     const btnRevelar = document.getElementById('revelar');
     const msg = document.getElementById('mensagem');
+    const contagem = document.getElementById('contagem');
     const palpiteTexto = document.getElementById('palpiteTexto');
+    const resultadoVotos = document.getElementById('resultadoVotos');
     const acerto = document.getElementById('acerto');
 
     let palpite = null;
+    let votosMenino = 0;
+    let votosMenina = 0;
+
+    function atualizarVotos(){
+      resultadoVotos.textContent = `👶 Menino: ${votosMenino} | 👧 Menina: ${votosMenina}`;
+    }
 
     document.querySelectorAll('.btn-guess').forEach(b => {
       b.addEventListener('click', () => {
         palpite = b.dataset.guess;
+        if(palpite === 'menino') votosMenino++;
+        else votosMenina++;
         telaPalpite.classList.add('hidden');
         telaPrincipal.classList.remove('hidden');
         palpiteTexto.textContent = `Seu palpite: ${palpite === 'menina' ? 'Menina' : 'Menino'} ✨`;
+        atualizarVotos();
         setTimeout(()=> btnRevelar.focus(), 50);
       });
     });
+
+    let audioCtx = null;
+    function getAudioCtx(){
+      if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      return audioCtx;
+    }
+    function playTick(){
+      const ctx = getAudioCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(660, ctx.currentTime);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+      o.connect(g).connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.13);
+    }
+    function playCelebration(){
+      const ctx = getAudioCtx();
+      // fogos simulados com "boom" + aplausos (ruído)
+      for(let i=0;i<3;i++){
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(80, ctx.currentTime + i*0.3);
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + i*0.3);
+        g.gain.exponentialRampToValueAtTime(0.8, ctx.currentTime + 0.05 + i*0.3);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1 + i*0.3);
+        o.connect(g).connect(ctx.destination);
+        o.start(ctx.currentTime + i*0.3);
+        o.stop(ctx.currentTime + 1.1 + i*0.3);
+      }
+      const bufferSize = 2 * ctx.sampleRate;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+      const g2 = ctx.createGain();
+      g2.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g2.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.05);
+      g2.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.0);
+      noise.connect(g2).connect(ctx.destination);
+      noise.start();
+      noise.stop(ctx.currentTime + 2.1);
+    }
 
     const canvas = document.getElementById('confetti');
     const ctx = canvas.getContext('2d');
@@ -148,21 +235,42 @@
     }
 
     btnRevelar.addEventListener('click', () => {
-      msg.style.display='block';
-      document.body.classList.add('rosa');
+      getAudioCtx();
       btnRevelar.style.display='none';
       palpiteTexto.style.display='none';
-      const resultado = 'menina';
-      if(palpite === resultado){
-        acerto.textContent = 'Você acertou! 🎉';
-        acerto.className = '';
-      }
-      else {
-        acerto.textContent = 'Você errou 😅';
-        acerto.className = '';
-      }
-      try{ if(navigator.vibrate) navigator.vibrate(40);}catch(e){}
-      startConfetti(6000);
+      contagem.style.display='block';
+      contagem.classList.add('pulsando');
+      let tempo = 10;
+      contagem.textContent = `Revelação em ${tempo}...`;
+      playTick();
+      const intervalo = setInterval(()=>{
+        tempo--;
+        contagem.textContent = `Revelação em ${tempo}...`;
+        if(tempo > 0){ playTick(); }
+        if(tempo <= 0){
+          clearInterval(intervalo);
+          contagem.classList.remove('pulsando');
+          contagem.style.display='none';
+
+          msg.style.display='block';
+          document.body.classList.add('rosa');
+          setTimeout(()=> {
+            msg.classList.add('show');
+            startConfetti(6000);
+            playCelebration();
+          }, 50);
+
+          const resultado = 'menina';
+          if(palpite === resultado){
+            acerto.textContent = 'Você acertou! 🎉';
+          } else {
+            acerto.textContent = 'Você errou 😅';
+          }
+          setTimeout(()=> acerto.classList.add('show'), 100);
+
+          try{ if(navigator.vibrate) navigator.vibrate(40);}catch(e){}
+        }
+      },1000);
     });
   </script>
 </body>
